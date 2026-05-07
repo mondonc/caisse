@@ -1,18 +1,29 @@
-# .htaccess — pour l'application caisse
+# .htaccess — Caisse Enregistreuse
 
-# Pas de cache sur index.html et sw.js (le reste est géré par le SW)
-<FilesMatch "(index\.html|sw\.js|manifest\.json)$">
-  Header set Cache-Control "no-cache, no-store, must-revalidate"
-  Header set Pragma "no-cache"
-</FilesMatch>
+# Pas de cache sur les fichiers critiques de l'app shell
+<IfModule mod_headers.c>
+  <FilesMatch "(index\.html|sw\.js|manifest\.json)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
+</IfModule>
 
-# Content-Type correct pour les modules JS
-<FilesMatch "\.js$">
-  Header set Content-Type "application/javascript"
-</FilesMatch>
+# MIME types explicites
+<IfModule mod_mime.c>
+  AddType application/javascript .js
+  AddType application/json       .json
+  AddType text/css               .css
+</IfModule>
 
-# Sécuriser le dossier data
 <IfModule mod_rewrite.c>
   RewriteEngine On
-  RewriteRule ^api/data/.*$ - [F,L]
+
+  # Si le fichier existe physiquement, le servir directement.
+  # Empêche une règle SPA globale (*.* -> index.html) d'intercepter les .js/.css
+  RewriteCond %{REQUEST_FILENAME} -f
+  RewriteRule ^ - [L]
+
+  # Bloquer l'accès direct aux données PHP
+  RewriteRule ^api/data/ - [F,L]
 </IfModule>
