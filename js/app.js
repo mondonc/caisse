@@ -790,16 +790,16 @@ async function renderConfigContent() {
 function productCardHTML(p) {
   return `
   <div class="product-card" data-pid="${p.id}">
-    <input type="color" class="pc-color-swatch" value="${p.color||'#3b82f6'}" title="Couleur">
-    <div class="pc-fields">
-      <div class="pc-row">
-        <input type="text" class="pc-name" value="${escHtml(p.name)}" placeholder="Nom" maxlength="30">
-        <input type="number" class="pc-price" value="${p.price}" placeholder="0.00" min="0" step="0.01" style="width:90px">
-      </div>
+    <div class="pc-row-name">
+      <input type="text" class="pc-name" value="${escHtml(p.name)}" placeholder="Nom du produit" maxlength="30">
     </div>
-    <div class="pc-actions">
-      <button class="btn-sm primary pc-save" data-pid="${p.id}">✓</button>
-      <button class="btn-sm danger pc-delete" data-pid="${p.id}">✕</button>
+    <div class="pc-row-bottom">
+      <input type="color" class="pc-color-swatch" value="${p.color||'#3b82f6'}" title="Couleur du bouton">
+      <input type="number" class="pc-price-input" value="${p.price}" placeholder="0.00" min="0" step="0.01" inputmode="decimal">
+      <div class="pc-actions">
+        <button class="btn-sm primary pc-save" data-pid="${p.id}" title="Enregistrer">✓</button>
+        <button class="btn-sm danger pc-delete" data-pid="${p.id}" title="Supprimer">✕</button>
+      </div>
     </div>
   </div>`;
 }
@@ -810,7 +810,7 @@ function bindProductCardEvents() {
       const pid  = parseInt(btn.dataset.pid, 10);
       const card = btn.closest('.product-card');
       const name  = card.querySelector('.pc-name').value.trim();
-      const price = parseAmount(card.querySelector('.pc-price').value);
+      const price = parseAmount(card.querySelector('.pc-price-input').value);
       const color = card.querySelector('.pc-color-swatch').value;
       if (!name) { toast('Nom requis', 'error'); return; }
       const existing = (await dbGetAll('catalog')).find(p => p.id === pid);

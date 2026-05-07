@@ -119,7 +119,6 @@ html, body {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: calc(var(--cartbar-h) + 8px);
 }
 .view.active { display: block; }
 
@@ -175,16 +174,17 @@ html, body {
 
 /* ─── Cart Bar ───────────────────────────────────────────────── */
 #cart-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  /* Enfant flex de #app — évite les bugs de clip avec overflow:hidden sur Firefox */
   height: var(--cartbar-h);
+  min-height: var(--cartbar-h);
+  flex-shrink: 0;
   background: var(--surface);
   border-top: 1px solid var(--border);
-  z-index: 20;
   display: flex;
   align-items: stretch;
+  /* z-index conservé pour que la cart sheet passe par-dessus */
+  position: relative;
+  z-index: 5;
 }
 
 #cart-bar-btn {
@@ -687,33 +687,47 @@ html, body {
   padding: 12px;
   margin-bottom: 8px;
   display: flex;
-  gap: 12px;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Ligne 1 : nom (pleine largeur) */
+.pc-row-name {
+  display: flex;
+}
+.pc-row-name input[type="text"] {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Ligne 2 : couleur + prix + boutons */
+.pc-row-bottom {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .pc-color-swatch {
   width: 36px;
   height: 36px;
+  min-width: 36px;
   border-radius: 8px;
   flex-shrink: 0;
   border: 2px solid rgba(255,255,255,0.1);
+  padding: 2px;
+  cursor: pointer;
+  background: var(--surface-3);
 }
 
-.pc-fields {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.pc-price-input {
+  width: 80px;
+  min-width: 0;
+  flex-shrink: 0;
 }
 
-.pc-row {
-  display: flex;
-  gap: 8px;
-}
-
-.pc-row input[type="text"],
-.pc-row input[type="number"] {
-  flex: 1;
+/* Inputs communs aux cartes produit */
+.product-card input[type="text"],
+.product-card input[type="number"] {
   background: var(--surface-3);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -722,23 +736,16 @@ html, body {
   font-size: 0.9rem;
   padding: 7px 10px;
   outline: none;
-  min-width: 0;
+  -webkit-appearance: none;
 }
-.pc-row input:focus { border-color: var(--accent); }
-.pc-row input[type="color"] {
-  width: 44px;
-  height: 36px;
-  padding: 2px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--surface-3);
-  cursor: pointer;
-}
+.product-card input:focus { border-color: var(--accent); }
 
 .pc-actions {
   display: flex;
   gap: 6px;
   align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .btn-sm {
