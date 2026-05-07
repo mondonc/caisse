@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Caisse</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Header ────────────────────────────────────────────── -->
+  <header id="app-header">
+    <h1 id="service-name">Caisse</h1>
+    <div class="header-right">
+      <span id="sync-dot" class="sync-dot" title="Statut sync"></span>
+      <button class="icon-btn" id="btn-report" title="Rapports" aria-label="Rapports">📊</button>
+      <button class="icon-btn" id="btn-config" title="Configuration" aria-label="Configuration">⚙</button>
+    </div>
+  </header>
+
+  <!-- ── Main: Caisse ──────────────────────────────────────── -->
+  <main id="view-caisse" class="view active" role="main">
+    <div id="product-grid" aria-label="Produits"></div>
+  </main>
+
+  <!-- ── Cart Bar ──────────────────────────────────────────── -->
+  <div id="cart-bar" role="status">
+    <button id="cart-bar-btn" aria-label="Voir le panier">
+      <span id="cart-count-label">Panier vide</span>
+      <span id="cart-total-label" class="mono">0,00 €</span>
+      <span class="chevron" aria-hidden="true">▲</span>
+    </button>
+  </div>
+
+  <!-- ── Cart Sheet ─────────────────────────────────────────── -->
+  <div id="cart-overlay" class="hidden" role="presentation"></div>
+
+  <div id="cart-sheet" class="sheet hidden" role="dialog" aria-label="Commande en cours">
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <div class="sheet-header">
+      <h2>Commande</h2>
+      <button id="cart-close-btn" class="icon-btn" aria-label="Fermer">✕</button>
+    </div>
+    <div id="cart-items" class="cart-items" role="list"></div>
+    <div class="cart-footer">
+      <div class="cart-total-row">
+        <span>Total</span>
+        <span id="cart-total-display" class="mono">0,00 €</span>
+      </div>
+      <div class="cart-actions">
+        <button id="btn-refund" class="btn-secondary">↩ Remb.</button>
+        <button id="btn-pay" class="btn-primary" disabled>Payer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Payment Modal ─────────────────────────────────────── -->
+  <div id="payment-modal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Paiement">
+    <div class="modal-inner">
+      <div class="pay-header">
+        <button id="pay-cancel-btn" class="icon-btn" aria-label="Annuler">✕</button>
+        <h2 id="pay-step-title">Paiement</h2>
+        <span id="pay-total-display" class="pay-total mono">0,00 €</span>
+      </div>
+      <div id="pay-body" class="pay-body"></div>
+      <div id="pay-footer" class="pay-footer"></div>
+    </div>
+  </div>
+
+  <!-- ── Refund Modal ───────────────────────────────────────── -->
+  <div id="refund-modal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Remboursement">
+    <div class="modal-inner">
+      <div class="pay-header">
+        <button id="refund-close-btn" class="icon-btn" aria-label="Annuler">✕</button>
+        <h2>Remboursement</h2>
+      </div>
+      <div class="pay-body">
+        <div>
+          <div class="pay-label">Montant à rembourser</div>
+          <div class="amount-field">
+            <div class="amount-row">
+              <input type="number" id="refund-amount-input"
+                     min="0.01" step="0.01" placeholder="0.00"
+                     inputmode="decimal" aria-label="Montant du remboursement">
+              <span class="currency">€</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="pay-label">Mode de remboursement</div>
+          <div class="choice-grid">
+            <button class="choice-btn-big selected" id="refund-btn-cash" data-method="cash">
+              <span class="emoji">💵</span>Liquide
+            </button>
+            <button class="choice-btn-big" id="refund-btn-voucher" data-method="voucher">
+              <span class="emoji">🎟️</span>Bon
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="pay-footer">
+        <button id="refund-confirm-btn" class="btn-primary">Rembourser</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Config View ────────────────────────────────────────── -->
+  <div id="view-config" class="view-slide hidden" role="dialog" aria-modal="true" aria-label="Configuration">
+    <div class="slide-header">
+      <button id="config-back-btn" class="icon-btn" aria-label="Retour">←</button>
+      <h2>Configuration</h2>
+      <button id="config-sync-btn" class="icon-btn" title="Synchroniser le catalogue" aria-label="Synchroniser">↻</button>
+    </div>
+    <div class="slide-content" id="config-content"></div>
+  </div>
+
+  <!-- ── Report View ────────────────────────────────────────── -->
+  <div id="view-report" class="view-slide hidden" role="dialog" aria-modal="true" aria-label="Rapports">
+    <div class="slide-header">
+      <button id="report-back-btn" class="icon-btn" aria-label="Retour">←</button>
+      <h2>Rapports</h2>
+      <button id="report-refresh-btn" class="icon-btn" title="Actualiser" aria-label="Actualiser">↻</button>
+    </div>
+    <div class="slide-content" id="report-content"></div>
+  </div>
+
+  <!-- ── Toast container ───────────────────────────────────── -->
+  <div id="toast-container" aria-live="polite"></div>
+
+</div><!-- #app -->
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

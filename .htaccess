@@ -1,0 +1,18 @@
+# .htaccess — pour l'application caisse
+
+# Pas de cache sur index.html et sw.js (le reste est géré par le SW)
+<FilesMatch "(index\.html|sw\.js|manifest\.json)$">
+  Header set Cache-Control "no-cache, no-store, must-revalidate"
+  Header set Pragma "no-cache"
+</FilesMatch>
+
+# Content-Type correct pour les modules JS
+<FilesMatch "\.js$">
+  Header set Content-Type "application/javascript"
+</FilesMatch>
+
+# Sécuriser le dossier data
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^api/data/.*$ - [F,L]
+</IfModule>
