@@ -34,10 +34,14 @@
 
   <!-- ── Cart Bar ──────────────────────────────────────────── -->
   <div id="cart-bar" role="status">
+    <button id="btn-refund" aria-label="Remboursement">↩ Remb.</button>
     <button id="cart-bar-btn" aria-label="Voir le panier">
       <span id="cart-count-label">Panier vide</span>
       <span id="cart-total-label" class="mono">0,00 €</span>
-      <span class="chevron" aria-hidden="true">▲</span>
+    </button>
+    <button id="btn-checkout" disabled aria-label="Encaisser">
+      <span class="checkout-icon">✓</span>
+      <span class="checkout-label">Encaisser</span>
     </button>
   </div>
 
@@ -57,7 +61,6 @@
         <span id="cart-total-display" class="mono">0,00 €</span>
       </div>
       <div class="cart-actions">
-        <button id="btn-refund" class="btn-secondary">↩ Remb.</button>
         <button id="btn-pay" class="btn-primary" disabled>Payer</button>
       </div>
     </div>

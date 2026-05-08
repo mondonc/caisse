@@ -195,33 +195,58 @@ html, body {
   font-family: var(--font);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 20px;
+  padding: 0 16px;
   cursor: pointer;
-  gap: 12px;
+  gap: 10px;
+  min-width: 0;
 }
+#cart-bar-btn:active { background: var(--surface-2); }
 
 #cart-count-label {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: var(--text-dim);
   font-weight: 500;
+  white-space: nowrap;
 }
 
 #cart-total-label {
   font-family: var(--mono);
-  font-size: 1.3rem;
+  font-size: 1.25rem;
   font-weight: 600;
   color: var(--accent);
   flex: 1;
   text-align: right;
+  white-space: nowrap;
 }
 
-.chevron {
-  font-size: 0.7rem;
-  color: var(--text-faint);
-  transition: transform var(--transition);
+/* Bouton Encaisser — visible, vert, toujours présent */
+#btn-checkout {
+  flex-shrink: 0;
+  width: 88px;
+  border: none;
+  border-left: 1px solid var(--border);
+  background: var(--success);
+  color: #000;
+  font-family: var(--font);
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  transition: filter var(--transition);
+  -webkit-appearance: none;
 }
-#cart-bar.open .chevron { transform: rotate(180deg); }
+#btn-checkout:not(:disabled):active { filter: brightness(0.82); }
+#btn-checkout:disabled {
+  background: var(--surface-2);
+  color: var(--text-faint);
+  cursor: not-allowed;
+  border-left-color: var(--border);
+}
+.checkout-icon  { font-size: 1.5rem; line-height: 1; }
+.checkout-label { font-size: 0.65rem; letter-spacing: 0.06em; text-transform: uppercase; }
 
 /* ─── Cart Sheet (bottom sheet) ──────────────────────────────── */
 #cart-overlay {
@@ -357,8 +382,32 @@ html, body {
 
 .cart-actions {
   display: flex;
+  align-items: center;
   gap: 10px;
 }
+
+/* Remboursement : discret, dans la cart bar à gauche */
+#btn-refund {
+  flex-shrink: 0;
+  width: 72px;
+  border: none;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  line-height: 1.2;
+  padding: 0 8px;
+  text-align: center;
+}
+#btn-refund:active { background: var(--surface-2); color: var(--text); }
 
 /* ─── Buttons ────────────────────────────────────────────────── */
 .btn-primary, .btn-secondary, .btn-danger {
@@ -810,6 +859,14 @@ html, body {
 .report-kv:last-child { border-bottom: none; }
 .report-kv .val { font-family: var(--mono); font-weight: 600; }
 .report-kv.accent .val { color: var(--accent); }
+
+.report-detail {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  padding: 0 0 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.report-detail:last-child { border-bottom: none; }
 
 .report-date-row {
   display: flex;

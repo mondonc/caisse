@@ -242,7 +242,9 @@ function renderCartBar() {
   const total = cartTotal();
   $('#cart-count-label').textContent = n === 0 ? 'Panier vide' : `${n} article${n > 1 ? 's' : ''}`;
   $('#cart-total-label').textContent = fmtNum(total);
-  $('#btn-pay').disabled = (n === 0);
+  const empty = (n === 0);
+  $('#btn-pay').disabled      = empty;
+  $('#btn-checkout').disabled = empty;
 }
 
 // ─── Cart Sheet ───────────────────────────────────────────────
@@ -908,37 +910,68 @@ async function loadReport() {
 }
 
 async function renderReportData(container, d) {
-  // Vérifier les transactions non encore synchronisées
   const pending = await dbGetAllByIndex('transactions', 'synced', 0);
   const badge = pending.length > 0
     ? `<div style="text-align:center;padding:8px;color:var(--info);font-size:0.82rem">⚠ ${pending.length} transaction(s) non synchronisée(s) — rapport incomplet</div>`
     : '';
 
+  // Produits vendus
+  const productsHTML = (d.by_product ?? []).length === 0
+    ? rKV('Aucune vente', '—')
+    : (d.by_product ?? []).map(p =>
+        rKV(`${escHtml(p.name)} × ${p.qty}`, fmtNum(p.revenue))
+      ).join('');
+
+  // Détail entrées par méthode
+  function methodRow(label, m) {
+    const gross  = d.gross_in?.[m]      ?? 0;
+    const change = d.change_out?.[m]    ?? 0;
+    const refund = d.refund_out?.[m]    ?? 0;
+    const net    = d.net_by_method?.[m] ?? 0;
+    if (gross === 0 && net === 0) return '';
+    let detail = fmtNum(gross);
+    if (change > 0) detail += ` − ${fmtNum(change)} rendu`;
+    if (refund > 0) detail += ` − ${fmtNum(refund)} remb.`;
+    return `
+      <div class="report-kv">
+        <span>${label}</span>
+        <span class="val mono">${fmtNum(net)}</span>
+      </div>
+      ${(change > 0 || refund > 0) ? `<div class="report-detail">encaissé ${detail}</div>` : ''}`;
+  }
+
+  const fond = state.config.cashOpening || 0;
+
   container.innerHTML = badge + `
     <div class="report-card">
       <h3>Chiffre d'affaires</h3>
-      ${rKV('Ventes',          fmtNum(d.total_sales),   true)}
-      ${rKV('Remboursements',  '− ' + fmtNum(d.total_refunds))}
-      ${rKV('Net',             fmtNum(d.net),            true)}
-      ${rKV('Nb ventes',       d.sales_count)}
-      ${rKV('Nb remb.',        d.refund_count)}
+      ${rKV('Ventes brutes',    fmtNum(d.total_sales), true)}
+      ${rKV('Remboursements',   d.total_refunds > 0 ? '− ' + fmtNum(d.total_refunds) : fmtNum(0))}
+      ${rKV('Net',              fmtNum(d.net), true)}
+      ${rKV('Nb ventes',        d.sales_count)}
+      ${d.refund_count > 0 ? rKV('Nb remb.', d.refund_count) : ''}
     </div>
 
     <div class="report-card">
-      <h3>Par mode de paiement (encaissé)</h3>
-      ${rKV('Liquide',    fmtNum(d.by_method.cash))}
-      ${rKV('Bons',       fmtNum(d.by_method.voucher))}
-      ${rKV('CB',         fmtNum(d.by_method.cb))}
-      ${rKV('Téléphone',  fmtNum(d.by_method.phone))}
+      <h3>Produits vendus</h3>
+      ${productsHTML}
     </div>
 
     <div class="report-card">
-      <h3>Caisse liquide (théorique)</h3>
-      ${rKV('Fond de caisse',   fmtNum(state.config.cashOpening || 0))}
-      ${rKV('Liquide encaissé', fmtNum(d.cash_received))}
-      ${rKV('Rendu en liquide', '− ' + fmtNum(d.cash_change_out))}
-      ${rKV('Remb. en liquide','− ' + fmtNum(d.cash_refunds_out))}
-      ${rKV('Total en caisse',  fmtNum((state.config.cashOpening||0) + d.cash_net), true)}
+      <h3>Entrées nettes par moyen de paiement</h3>
+      ${methodRow('Liquide',   'cash')}
+      ${methodRow('Bons',      'voucher')}
+      ${methodRow('CB',        'cb')}
+      ${methodRow('Téléphone', 'phone')}
+    </div>
+
+    <div class="report-card">
+      <h3>En caisse (théorique)</h3>
+      ${rKV('Fond de caisse',    fmtNum(fond))}
+      ${rKV('+ Liquide net',     fmtNum(d.cash_net))}
+      ${rKV('= Total liquide',   fmtNum(fond + d.cash_net), true)}
+      <div style="height:8px"></div>
+      ${rKV('Bons nets',         fmtNum(d.voucher_net), true)}
     </div>
   `;
 }
@@ -985,6 +1018,9 @@ function bindEvents() {
 
   // Pay button (inside cart sheet)
   $('#btn-pay').addEventListener('click', startPayment);
+
+  // Bouton Encaisser dans la barre → ouvre le panier (recap avant paiement)
+  $('#btn-checkout').addEventListener('click', openCartSheet);
 
   // Refund button
   $('#btn-refund').addEventListener('click', openRefundModal);
