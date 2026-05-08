@@ -446,13 +446,11 @@ function renderPayMethod() {
     renderPayStep();
   });
 
-  // Wire choice buttons
+  // Wire choice buttons — sélection = avance directe, pas de "Suivant"
   grid.querySelectorAll('.choice-btn-big').forEach(btn => {
     btn.addEventListener('click', () => {
-      grid.querySelectorAll('.choice-btn-big').forEach(b => b.classList.remove('selected'));
-      btn.classList.add('selected');
       state.pay.method = btn.dataset.value;
-      $('#pay-btn-next').disabled = false;
+      $('#pay-btn-next').click();   // réutilise la logique existante
     });
   });
 }
@@ -546,6 +544,14 @@ function renderPayAmount() {
 
   $('#input-cash').addEventListener('input', updateFeedback);
   $('#input-voucher').addEventListener('input', updateFeedback);
+
+  // Enter ferme le clavier mobile sans valider le formulaire
+  ['#input-cash', '#input-voucher'].forEach(sel => {
+    $(sel)?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); $(sel).blur(); }
+    });
+  });
+
   $('#input-cash').focus();
 }
 
@@ -571,10 +577,8 @@ function renderPayCBType() {
 
   body.querySelectorAll('.choice-btn-big').forEach(btn => {
     btn.addEventListener('click', () => {
-      body.querySelectorAll('.choice-btn-big').forEach(b => b.classList.remove('selected'));
-      btn.classList.add('selected');
       state.pay.cbType = btn.dataset.value;
-      $('#pay-btn-next3').disabled = false;
+      $('#pay-btn-next3').click();
     });
   });
 }
