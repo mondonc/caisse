@@ -101,6 +101,9 @@ function $$(sel) { return document.querySelectorAll(sel); }
 // ═══════════════════════════════════════════════════════════════
 
 async function init() {
+  // Initialiser la navigation history (bouton précédent)
+  initHistory();
+
   // Register service worker
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
@@ -368,12 +371,14 @@ function startPayment() {
 
   $('#pay-total-display').textContent = fmtNum(cartTotal());
   $('#payment-modal').classList.remove('hidden');
+  history.pushState({ view: 'paiement' }, '', '#paiement');
   renderPayStep();
 }
 
 function cancelPayment() {
   state.pay.active = false;
   $('#payment-modal').classList.add('hidden');
+  _historyBack('#paiement');
 }
 
 // ─── Step router ──────────────────────────────────────────────
@@ -754,16 +759,45 @@ function closeRefundModal() {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// NAVIGATION HISTORY (bouton précédent)
+// ═══════════════════════════════════════════════════════════════
+
+function initHistory() {
+  history.replaceState({ view: 'caisse' }, '', '#caisse');
+
+  // Le popstate ferme directement le DOM — aucun appel à history depuis ici
+  window.addEventListener('popstate', () => {
+    if (!$('#payment-modal').classList.contains('hidden')) {
+      state.pay.active = false;
+      $('#payment-modal').classList.add('hidden');
+    } else if (!$('#refund-modal').classList.contains('hidden')) {
+      $('#refund-modal').classList.add('hidden');
+    } else if (!$('#view-config').classList.contains('hidden')) {
+      $('#view-config').classList.add('hidden');
+    } else if (!$('#view-report').classList.contains('hidden')) {
+      $('#view-report').classList.add('hidden');
+    }
+  });
+}
+
+// history.back() uniquement si le hash correspond (évite de sortir de l'app)
+function _historyBack(expectedHash) {
+  if (location.hash === expectedHash) history.back();
+}
+
+// ═══════════════════════════════════════════════════════════════
 // CONFIG VIEW
 // ═══════════════════════════════════════════════════════════════
 
 function showConfig() {
   renderConfigContent();
   $('#view-config').classList.remove('hidden');
+  history.pushState({ view: 'config' }, '', '#config');
 }
 
 function hideConfig() {
   $('#view-config').classList.add('hidden');
+  _historyBack('#config');
 }
 
 let _configRendering = false;
@@ -1063,10 +1097,12 @@ async function saveConfig() {
 function showReport() {
   $('#view-report').classList.remove('hidden');
   renderReportContent();
+  history.pushState({ view: 'rapport' }, '', '#rapport');
 }
 
 function hideReport() {
   $('#view-report').classList.add('hidden');
+  _historyBack('#rapport');
 }
 
 // ─── Sélecteur date/heure custom (selects) ───────────────────
