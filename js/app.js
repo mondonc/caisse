@@ -986,13 +986,13 @@ async function renderReportContent() {
     <div class="report-date-row">
       <div class="rpt-range-group">
         <span class="rpt-range-label">Du</span>
-        <input type="date" id="rpt-from-date" value="${today()}">
-        <input type="time" id="rpt-from-time" value="00:00">
+        <input type="date" id="rpt-from-date" value="${today()}" lang="fr-FR">
+        <input type="time" id="rpt-from-time" value="00:00" lang="fr-FR">
       </div>
       <div class="rpt-range-group">
         <span class="rpt-range-label">Au</span>
-        <input type="date" id="rpt-to-date" value="${today()}">
-        <input type="time" id="rpt-to-time" value="23:59">
+        <input type="date" id="rpt-to-date" value="${today()}" lang="fr-FR">
+        <input type="time" id="rpt-to-time" value="23:59" lang="fr-FR">
       </div>
     </div>
     <div id="rpt-body"><div style="text-align:center;padding:32px;color:var(--text-dim)">Chargement…</div></div>`;
