@@ -1273,16 +1273,9 @@ async function renderReportData(container, d, fromISO) {
       ${(change > 0 || refund > 0) ? `<div class="report-detail">encaissé ${detail}</div>` : ''}`;
   }
 
-  // Fond en vigueur au début de la période.
-  // Priorité : donnée serveur (d.fond_period) — agrège tous les appareils.
-  // Fallback : historique local (si rapport en hors-ligne ou fond non encore syncé).
-  const fondPeriod = d.fond_period
-    ?? (fromISO ? getFondForPeriod(fromISO) : state.fondCaisse);
-  const fond     = fondPeriod.cash    || 0;
-  const fondBons = fondPeriod.voucher || 0;
-  const fondInfo = fondPeriod.recorded_at
-    ? ` (saisi le ${new Date(fondPeriod.recorded_at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})})`
-    : ' (non saisi — fond à 0)';
+  // Solde d'ouverture calculé côté serveur depuis tout l'historique avant $from
+  const fond     = d.opening?.cash    ?? 0;
+  const fondBons = d.opening?.voucher ?? 0;
 
   container.innerHTML = badge + `
     <div class="report-card">
@@ -1309,10 +1302,23 @@ async function renderReportData(container, d, fromISO) {
 
     <div class="report-card">
       <h3>En caisse (théorique)</h3>
-      <div class="report-fond-info">Fond de caisse${fondInfo}</div>
 
-      ${drawerGroup('Liquide',  fond,     d.cash_net,    d.decaissement_out?.cash    ?? 0)}
-      ${drawerGroup('Bons',     fondBons, d.voucher_net, d.decaissement_out?.voucher ?? 0)}
+      ${drawerGroup('Liquide',
+        fond,
+        d.ajouts_in?.cash        ?? 0,
+        d.gross_in?.cash         ?? 0,
+        d.change_out?.cash       ?? 0,
+        d.refund_out?.cash       ?? 0,
+        d.decaissement_out?.cash ?? 0
+      )}
+      ${drawerGroup('Bons',
+        fondBons,
+        d.ajouts_in?.voucher        ?? 0,
+        d.gross_in?.voucher         ?? 0,
+        d.change_out?.voucher       ?? 0,
+        d.refund_out?.voucher       ?? 0,
+        d.decaissement_out?.voucher ?? 0
+      )}
     </div>
   `;
 }
