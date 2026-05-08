@@ -2,7 +2,7 @@
 // Cache-first for app shell. Network-only for API (with graceful fail).
 // Background Sync for pending transactions.
 
-const CACHE_NAME = 'caisse-v1';
+const CACHE_NAME = 'caisse-v2';
 
 const PRECACHE = [
   './',
