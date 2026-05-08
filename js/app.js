@@ -420,37 +420,30 @@ function renderPayMethod() {
     grid.appendChild(btnCB);
   }
 
-  // Footer: Suivant (disabled until selection)
+  // Juste "Annuler" — la sélection avance directement
   $('#pay-footer').innerHTML = `
     <div class="btn-row">
       <button class="btn-secondary" id="pay-btn-cancel">Annuler</button>
-      <button class="btn-primary" id="pay-btn-next" disabled>Suivant →</button>
     </div>`;
 
   $('#pay-btn-cancel').addEventListener('click', cancelPayment);
-  $('#pay-btn-next').addEventListener('click', () => {
-    const method = state.pay.method;
-    if (!method) return;
-    if (method === 'cash_voucher') {
-      state.pay.step = 'amount';
-    } else {
-      // CB: if both cb and phone active → sub-select; otherwise go to confirm
-      const pm = state.config.paymentMethods;
-      if (pm.cb && pm.phone) {
-        state.pay.step = 'cb_type';
-      } else {
-        state.pay.cbType = pm.cb ? 'cb' : 'phone';
-        state.pay.step = 'confirm';
-      }
-    }
-    renderPayStep();
-  });
 
-  // Wire choice buttons — sélection = avance directe, pas de "Suivant"
+  // Sélection = navigation immédiate vers l'étape suivante
   grid.querySelectorAll('.choice-btn-big').forEach(btn => {
     btn.addEventListener('click', () => {
       state.pay.method = btn.dataset.value;
-      $('#pay-btn-next').click();   // réutilise la logique existante
+      if (state.pay.method === 'cash_voucher') {
+        state.pay.step = 'amount';
+      } else {
+        const pm = state.config.paymentMethods;
+        if (pm.cb && pm.phone) {
+          state.pay.step = 'cb_type';
+        } else {
+          state.pay.cbType = pm.cb ? 'cb' : 'phone';
+          state.pay.step = 'confirm';
+        }
+      }
+      renderPayStep();
     });
   });
 }
@@ -566,19 +559,19 @@ function renderPayCBType() {
       ${choiceBtnBigHTML('📱', 'Téléphone', 'phone')}
     </div>`;
 
+  // Juste "Retour" — la sélection avance directement
   $('#pay-footer').innerHTML = `
     <div class="btn-row">
       <button class="btn-secondary" id="pay-btn-back">← Retour</button>
-      <button class="btn-primary" id="pay-btn-next3" disabled>Suivant →</button>
     </div>`;
 
   $('#pay-btn-back').addEventListener('click', () => { state.pay.step = 'method'; renderPayStep(); });
-  $('#pay-btn-next3').addEventListener('click', () => { state.pay.step = 'confirm'; renderPayStep(); });
 
   body.querySelectorAll('.choice-btn-big').forEach(btn => {
     btn.addEventListener('click', () => {
       state.pay.cbType = btn.dataset.value;
-      $('#pay-btn-next3').click();
+      state.pay.step = 'confirm';
+      renderPayStep();
     });
   });
 }
