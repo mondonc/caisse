@@ -162,13 +162,24 @@ async function tryCatalogSync() {
   if (!navigator.onLine) return;
   try {
     const remote = await pullCatalog();
-    if (Array.isArray(remote?.products)) {
-      await dbClearStore('catalog');
-      for (const p of remote.products) await dbPut('catalog', p);
-      await reloadCatalog();
-      renderProductGrid();
-    }
-  } catch { /* offline or server error — use local data */ }
+    if (!Array.isArray(remote?.products) || remote.products.length === 0) return;
+
+    // Clear + re-insert dans UNE SEULE transaction IndexedDB → atomique.
+    // Toute lecture concurrente verra soit l'ancien catalogue complet,
+    // soit le nouveau. Jamais un état intermédiaire vide.
+    const db = await openDB();
+    await new Promise((resolve, reject) => {
+      const tx    = db.transaction('catalog', 'readwrite');
+      const store = tx.objectStore('catalog');
+      store.clear();
+      for (const p of remote.products) store.put(p);
+      tx.oncomplete = resolve;
+      tx.onerror    = () => reject(tx.error);
+    });
+
+    await reloadCatalog();
+    renderProductGrid();
+  } catch { /* offline ou erreur serveur — données locales utilisées */ }
 }
 
 async function saveCatalogToServer() {
@@ -727,9 +738,22 @@ function hideConfig() {
   $('#view-config').classList.add('hidden');
 }
 
+let _configRendering = false;
+
 async function renderConfigContent() {
+  if (_configRendering) return;
+  _configRendering = true;
+
   const el = $('#config-content');
-  const all = await dbGetAll('catalog');
+  if (!el) { _configRendering = false; return; }  // sécurité null
+
+  let all;
+  try {
+    all = await dbGetAll('catalog');
+  } catch (e) {
+    _configRendering = false;
+    return;
+  }
   all.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 
   const pm = state.config.paymentMethods;
@@ -843,6 +867,8 @@ async function renderConfigContent() {
 
   // Product cards: save + delete buttons
   bindProductCardEvents();
+
+  _configRendering = false;
 }
 
 function productCardHTML(p) {
