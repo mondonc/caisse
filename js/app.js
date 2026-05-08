@@ -189,7 +189,8 @@ async function saveCatalogToServer() {
   try {
     await pushCatalog({ products: all });
     toast('Catalogue synchronisé', 'success');
-  } catch {
+  } catch (e) {
+    console.error("[rapport] Erreur:", e);
     toast('Synchronisation échouée — réessayez', 'error');
   }
 }
@@ -818,6 +819,35 @@ async function renderConfigContent() {
       <button class="btn-sm primary" id="cfg-save-fond">Enregistrer le fond</button>
     </div>
 
+    <!-- Décaissements -->
+    <div class="config-section">
+      <h3>Décaissements</h3>
+      <p class="config-hint">Sorties de caisse hors ventes (rendu de monnaie, dépenses…)</p>
+      <div class="fond-fields">
+        <div class="config-field">
+          <label for="decais-amount">Montant</label>
+          <div class="fond-input-row">
+            <input type="number" id="decais-amount" min="0.01" step="0.01"
+                   placeholder="0.00" inputmode="decimal">
+            <span class="fond-currency">€</span>
+          </div>
+        </div>
+        <div class="config-field">
+          <label>Type</label>
+          <div class="decais-type-btns">
+            <button class="btn-sm primary decais-type-btn" data-type="cash">Liquide</button>
+            <button class="btn-sm decais-type-btn" data-type="voucher">Bons</button>
+          </div>
+        </div>
+      </div>
+      <div class="config-field" style="margin-bottom:10px">
+        <label for="decais-note">Note (optionnel)</label>
+        <input type="text" id="decais-note" placeholder="Ex : appoint monnaie">
+      </div>
+      <button class="btn-sm primary" id="cfg-add-decaissement">↓ Enregistrer le décaissement</button>
+      <div id="decaissement-list" class="decaissement-list" style="margin-top:12px"></div>
+    </div>
+
     <!-- Service name -->
     <div class="config-section">
       <h3>Général</h3>
@@ -866,12 +896,28 @@ async function renderConfigContent() {
   $('#cfg-save-fond').addEventListener('click', async () => {
     const cash    = parseAmount($('#cfg-fond-cash').value);
     const voucher = parseAmount($('#cfg-fond-voucher').value);
-    const entry = { cash, voucher, recorded_at: new Date().toISOString() };
+    const ts    = Date.now();
+    const entry = { cash, voucher, recorded_at: new Date(ts).toISOString() };
     state.fondCaisse = entry;
     state.fondCaisseHistory.push(entry);
     await setSetting('fond_caisse', state.fondCaisse);
     await setSetting('fond_caisse_history', state.fondCaisseHistory);
-    // Rafraîchir l'info "saisi le..."
+
+    // Stocker aussi comme transaction → sync serveur automatique
+    // Permet aux rapports multi-périphériques de trouver le bon fond
+    await dbPut('transactions', {
+      id:        `${ts}_${state.deviceId}`,
+      device_id: state.deviceId,
+      type:      'fond',
+      items:     [],
+      total:     0,
+      payment:   { cash, voucher, cb: 0, phone: 0 },
+      change:    null,
+      timestamp: new Date(ts).toISOString(),
+      synced:    0,
+    });
+    requestSync();
+
     renderConfigContent();
     toast(`Fond enregistré — ${fmtNum(cash)} liquide${voucher > 0 ? ` · ${fmtNum(voucher)} bons` : ''}`, 'success');
   });
@@ -897,6 +943,49 @@ async function renderConfigContent() {
 
   // Product cards: save + delete buttons
   bindProductCardEvents();
+
+  // ── Décaissements : liste + formulaire ────────────────────
+  dbGetAllByIndex('transactions', 'type', 'decaissement').then(decais => {
+    const list = $('#decaissement-list');
+    if (!list) return;
+    decais.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    if (decais.length === 0) {
+      list.innerHTML = '<p class="config-hint">Aucun décaissement enregistré</p>';
+    } else {
+      list.innerHTML = decais.slice(0, 15).map(d => {
+        const method = d.payment?.voucher > 0 ? 'Bons' : 'Liquide';
+        const amount = d.payment?.voucher > 0 ? d.payment.voucher : (d.payment?.cash || 0);
+        const note   = d.note ? ' — ' + escHtml(d.note) : '';
+        const date   = new Date(d.timestamp).toLocaleString('fr-FR',
+          {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+        return `<div class="decaissement-item">
+          <span class="decaissement-amount">${fmtNum(amount)} ${method}</span>
+          <span class="decaissement-date">${date}${note}</span>
+        </div>`;
+      }).join('');
+    }
+  });
+
+  let _decaisType = 'cash';
+  $$('.decais-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _decaisType = btn.dataset.type;
+      $$('.decais-type-btn').forEach(b => b.classList.remove('primary'));
+      btn.classList.add('primary');
+    });
+  });
+
+  $('#cfg-add-decaissement')?.addEventListener('click', async () => {
+    const amount = parseAmount($('#decais-amount').value);
+    if (!amount || amount <= 0) { toast('Montant invalide', 'error'); return; }
+    const note = $('#decais-note').value.trim();
+    await saveDecaissement(amount, _decaisType, note);
+    $('#decais-amount').value = '';
+    $('#decais-note').value   = '';
+    toast(`Décaissement ${fmtNum(amount)} enregistré`, 'success');
+    _configRendering = false;
+    renderConfigContent();
+  });
 
   _configRendering = false;
 }
@@ -1069,9 +1158,23 @@ async function loadReport() {
     const res  = await fetch(`./api/report.php?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
     const data = await res.json();
     await renderReportData(body, data, from);
-  } catch {
+  } catch (e) {
+    console.error("[rapport] Erreur:", e);
     body.innerHTML = `<div style="text-align:center;padding:32px;color:var(--danger)">Erreur de chargement</div>`;
   }
+}
+
+// Bloc "En caisse" pour une méthode (liquide ou bons)
+function drawerGroup(label, fond, net, decais) {
+  const total = round2(fond + net - decais);
+  return `
+    <div class="report-drawer-group">
+      <div class="report-drawer-title">${label}</div>
+      ${rKV('Début de service',     fmtNum(fond))}
+      ${rKV('+ Entrées nettes',     (net    >= 0 ? '+ ' : '− ') + fmtNum(Math.abs(net)))}
+      ${decais > 0 ? rKV('− Décaissements', '− ' + fmtNum(decais)) : ''}
+      ${rKV('En caisse maintenant', fmtNum(total), true)}
+    </div>`;
 }
 
 async function renderReportData(container, d, fromISO) {
@@ -1105,8 +1208,11 @@ async function renderReportData(container, d, fromISO) {
       ${(change > 0 || refund > 0) ? `<div class="report-detail">encaissé ${detail}</div>` : ''}`;
   }
 
-  // Fond en vigueur au début de la période (pas forcément le fond actuel)
-  const fondPeriod = fromISO ? getFondForPeriod(fromISO) : state.fondCaisse;
+  // Fond en vigueur au début de la période.
+  // Priorité : donnée serveur (d.fond_period) — agrège tous les appareils.
+  // Fallback : historique local (si rapport en hors-ligne ou fond non encore syncé).
+  const fondPeriod = d.fond_period
+    ?? (fromISO ? getFondForPeriod(fromISO) : state.fondCaisse);
   const fond     = fondPeriod.cash    || 0;
   const fondBons = fondPeriod.voucher || 0;
   const fondInfo = fondPeriod.recorded_at
@@ -1140,19 +1246,8 @@ async function renderReportData(container, d, fromISO) {
       <h3>En caisse (théorique)</h3>
       <div class="report-fond-info">Fond de caisse${fondInfo}</div>
 
-      <div class="report-drawer-group">
-        <div class="report-drawer-title">Liquide</div>
-        ${rKV('Début de service',        fmtNum(fond))}
-        ${rKV('Variation sur la période', (d.cash_net >= 0 ? '+ ' : '− ') + fmtNum(Math.abs(d.cash_net)))}
-        ${rKV('En caisse maintenant',    fmtNum(fond + d.cash_net), true)}
-      </div>
-
-      <div class="report-drawer-group">
-        <div class="report-drawer-title">Bons</div>
-        ${rKV('Début de service',        fmtNum(fondBons))}
-        ${rKV('Variation sur la période', (d.voucher_net >= 0 ? '+ ' : '− ') + fmtNum(Math.abs(d.voucher_net)))}
-        ${rKV('En caisse maintenant',    fmtNum(fondBons + d.voucher_net), true)}
-      </div>
+      ${drawerGroup('Liquide',  fond,     d.cash_net,    d.decaissement_out?.cash    ?? 0)}
+      ${drawerGroup('Bons',     fondBons, d.voucher_net, d.decaissement_out?.voucher ?? 0)}
     </div>
   `;
 }
@@ -1167,6 +1262,28 @@ function getFondForPeriod(fromISO) {
     .sort((a, b) => b.recorded_at.localeCompare(a.recorded_at));
   return candidates[0] ?? { cash: 0, voucher: 0, recorded_at: null };
 }
+
+// ── Enregistrer un décaissement ──────────────────────────────
+async function saveDecaissement(amount, type, note) {
+  const ts      = Date.now();
+  const payment = { cash: 0, voucher: 0, cb: 0, phone: 0 };
+  payment[type] = amount;
+  const tx = {
+    id:        `${ts}_${state.deviceId}`,
+    device_id: state.deviceId,
+    type:      'decaissement',
+    items:     [],
+    total:     -amount,
+    payment,
+    change:    null,
+    note:      note || '',
+    timestamp: new Date(ts).toISOString(),
+    synced:    0,
+  };
+  await dbPut('transactions', tx);
+  requestSync();
+}
+
 
 // ═══════════════════════════════════════════════════════════════
 // SYNC STATUS INDICATOR

@@ -844,6 +844,42 @@ html, body {
 .btn-sm.primary { border-color: var(--accent); color: var(--accent); }
 .btn-sm:active { filter: brightness(0.8); }
 
+/* Décaissements */
+.decais-type-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.decaissement-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.decaissement-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 7px 10px;
+  background: var(--surface-3);
+  border-radius: var(--radius-sm);
+  gap: 8px;
+}
+
+.decaissement-amount {
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--danger);
+  flex-shrink: 0;
+}
+
+.decaissement-date {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  text-align: right;
+}
+
 /* Champs fond de caisse dans la config */
 .config-hint {
   font-size: 0.8rem;

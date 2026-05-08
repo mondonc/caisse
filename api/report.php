@@ -19,6 +19,11 @@ $all = array_values($byId);
 // ── Filtres date ──────────────────────────────────────────────
 $from = $_GET['from'] ?? null;
 $to   = $_GET['to']   ?? null;
+
+// Collecter les transactions de fond depuis la liste complète (avant filtre de date)
+// Le fond est saisi AVANT la période → il serait exclu par le filtre chronologique
+$fond_transactions_all = array_filter($all, fn($tx) => ($tx['type'] ?? '') === 'fond');
+
 if ($from || $to) {
     $all = array_values(array_filter($all, function ($tx) use ($from, $to) {
         $ts = $tx['timestamp'] ?? '';
@@ -41,6 +46,9 @@ $gross_in  = ['cash' => 0.0, 'voucher' => 0.0, 'cb' => 0.0, 'phone' => 0.0];
 $change_out = ['cash' => 0.0, 'voucher' => 0.0];
 // Remboursements sortis par méthode
 $refund_out = ['cash' => 0.0, 'voucher' => 0.0, 'cb' => 0.0, 'phone' => 0.0];
+// Décaissements (sorties hors ventes)
+$decaissement_out = ['cash' => 0.0, 'voucher' => 0.0];
+
 
 // Produits vendus : agrégé par nom
 $by_product = [];
@@ -79,11 +87,18 @@ foreach ($all as $tx) {
     } elseif ($type === 'refund') {
         $refund_count++;
         $total_refunds += abs($total);
-
         foreach (['cash', 'voucher', 'cb', 'phone'] as $m) {
             $refund_out[$m] += abs(floatval($tx['payment'][$m] ?? 0));
         }
+
+    } elseif ($type === 'decaissement') {
+        // Sortie de caisse hors vente — ne modifie pas le CA
+        foreach (['cash', 'voucher'] as $m) {
+            $decaissement_out[$m] += abs(floatval($tx['payment'][$m] ?? 0));
+        }
+
     }
+    // type 'fond' : déjà collecté dans $fond_transactions_all avant le filtre date
 }
 
 // Tri produits par quantité décroissante
@@ -93,6 +108,24 @@ usort($by_product, fn($a, $b) => $b['qty'] - $a['qty']);
 $net_by_method = [];
 foreach (['cash', 'voucher', 'cb', 'phone'] as $m) {
     $net_by_method[$m] = $gross_in[$m] - ($change_out[$m] ?? 0) - $refund_out[$m];
+}
+
+// ── Fond en vigueur au début de la période ───────────────────
+// = la saisie de fond la plus récente avec timestamp <= $from
+$fond_period = null;
+if ($from && !empty($fond_transactions_all)) {
+    $fond_arr = array_values($fond_transactions_all);
+    usort($fond_arr, fn($a, $b) => strcmp($b['timestamp'] ?? '', $a['timestamp'] ?? ''));
+    foreach ($fond_arr as $ft) {
+        if (($ft['timestamp'] ?? '') <= $from) {
+            $fond_period = [
+                'cash'        => floatval($ft['payment']['cash']    ?? 0),
+                'voucher'     => floatval($ft['payment']['voucher'] ?? 0),
+                'recorded_at' => $ft['timestamp'] ?? null,
+            ];
+            break;
+        }
+    }
 }
 
 // ── Réponse ───────────────────────────────────────────────────
@@ -111,7 +144,9 @@ echo json_encode([
     'gross_in'      => array_map(fn($v) => round($v, 2), $gross_in),
     'change_out'    => array_map(fn($v) => round($v, 2), $change_out),
     'refund_out'    => array_map(fn($v) => round($v, 2), $refund_out),
-    'net_by_method' => array_map(fn($v) => round($v, 2), $net_by_method),
+    'net_by_method'    => array_map(fn($v) => round($v, 2), $net_by_method),
+    'decaissement_out' => array_map(fn($v) => round($v, 2), $decaissement_out),
+    'fond_period'      => $fond_period,   // fond en vigueur au début de la période
 
     // Caisse théorique (fond de caisse ajouté côté client)
     'cash_net'      => round($net_by_method['cash'],    2),
