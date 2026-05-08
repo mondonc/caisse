@@ -817,37 +817,35 @@ async function renderConfigContent() {
 
   const pm = state.config.paymentMethods;
 
-  const f = state.fondCaisse;
-  const fondInfo = f.recorded_at
-    ? `Saisi le ${new Date(f.recorded_at).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}`
-    : 'Pas encore saisi pour ce service';
-
   el.innerHTML = `
-    <!-- Fond de caisse -->
+    <!-- Ajout dans la caisse -->
     <div class="config-section">
-      <h3>Fond de caisse en début de service</h3>
-      <p class="config-hint">${fondInfo}</p>
+      <h3>Ajout dans la caisse</h3>
+      <p class="config-hint">Entrées hors ventes : fond de caisse, rattrapage de décalage…</p>
       <div class="fond-fields">
         <div class="config-field">
-          <label for="cfg-fond-cash">Liquide</label>
+          <label for="ajout-amount">Montant</label>
           <div class="fond-input-row">
-            <input type="number" id="cfg-fond-cash" min="0" step="0.01"
-                   placeholder="0.00" inputmode="decimal"
-                   value="${f.cash > 0 ? f.cash : ''}">
+            <input type="number" id="ajout-amount" min="0.01" step="0.01"
+                   placeholder="0.00" inputmode="decimal">
             <span class="fond-currency">€</span>
           </div>
         </div>
         <div class="config-field">
-          <label for="cfg-fond-voucher">Bons</label>
-          <div class="fond-input-row">
-            <input type="number" id="cfg-fond-voucher" min="0" step="0.01"
-                   placeholder="0.00" inputmode="decimal"
-                   value="${f.voucher > 0 ? f.voucher : ''}">
-            <span class="fond-currency">€</span>
+          <label>Type</label>
+          <div class="decais-type-btns">
+            <button class="btn-sm primary ajout-type-btn" data-type="cash">Liquide</button>
+            <button class="btn-sm ajout-type-btn" data-type="voucher">Bons</button>
           </div>
         </div>
       </div>
-      <button class="btn-sm primary" id="cfg-save-fond">Enregistrer le fond</button>
+      <div class="config-field" style="margin-bottom:10px">
+        <label for="ajout-note">Note</label>
+        <input type="text" id="ajout-note"
+               placeholder="Ex : fond de caisse, rattrapage de décalage…">
+      </div>
+      <button class="btn-sm primary" id="cfg-add-ajout">↑ Enregistrer l'ajout</button>
+      <div id="ajout-list" class="decaissement-list" style="margin-top:12px"></div>
     </div>
 
     <!-- Décaissements -->
@@ -923,34 +921,68 @@ async function renderConfigContent() {
     </div>
   `;
 
-  // Fond de caisse save
-  $('#cfg-save-fond').addEventListener('click', async () => {
-    const cash    = parseAmount($('#cfg-fond-cash').value);
-    const voucher = parseAmount($('#cfg-fond-voucher').value);
-    const ts    = Date.now();
-    const entry = { cash, voucher, recorded_at: new Date(ts).toISOString() };
+  // Ajout dans la caisse
+  let _ajoutType = 'cash';
+  $$('.ajout-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _ajoutType = btn.dataset.type;
+      $$('.ajout-type-btn').forEach(b => b.classList.remove('primary'));
+      btn.classList.add('primary');
+    });
+  });
+
+  // Historique des ajouts
+  dbGetAllByIndex('transactions', 'type', 'fond').then(ajouts => {
+    const list = $('#ajout-list');
+    if (!list) return;
+    ajouts.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    if (ajouts.length === 0) {
+      list.innerHTML = '<p class="config-hint">Aucun ajout enregistré</p>';
+    } else {
+      list.innerHTML = ajouts.slice(0, 15).map(a => {
+        const method = a.payment?.voucher > 0 ? 'Bons' : 'Liquide';
+        const amount = a.payment?.voucher > 0 ? a.payment.voucher : (a.payment?.cash || 0);
+        const note   = a.note ? ' — ' + escHtml(a.note) : '';
+        const date   = new Date(a.timestamp).toLocaleString('fr-FR',
+          {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+        return `<div class="decaissement-item">
+          <span class="decaissement-amount" style="color:var(--success)">${fmtNum(amount)} ${method}</span>
+          <span class="decaissement-date">${date}${note}</span>
+        </div>`;
+      }).join('');
+    }
+  });
+
+  $('#cfg-add-ajout')?.addEventListener('click', async () => {
+    const amount = parseAmount($('#ajout-amount').value);
+    if (!amount || amount <= 0) { toast('Montant invalide', 'error'); return; }
+    const note   = $('#ajout-note').value.trim();
+    const ts     = Date.now();
+    const cash    = _ajoutType === 'cash'    ? amount : 0;
+    const voucher = _ajoutType === 'voucher' ? amount : 0;
+    const entry   = { cash, voucher, recorded_at: new Date(ts).toISOString(), note };
     state.fondCaisse = entry;
     state.fondCaisseHistory.push(entry);
-    await setSetting('fond_caisse', state.fondCaisse);
+    await setSetting('fond_caisse',         state.fondCaisse);
     await setSetting('fond_caisse_history', state.fondCaisseHistory);
-
-    // Stocker aussi comme transaction → sync serveur automatique
-    // Permet aux rapports multi-périphériques de trouver le bon fond
     await dbPut('transactions', {
       id:        `${ts}_${state.deviceId}`,
       device_id: state.deviceId,
       type:      'fond',
       items:     [],
-      total:     0,
+      total:     amount,
       payment:   { cash, voucher, cb: 0, phone: 0 },
       change:    null,
+      note:      note,
       timestamp: new Date(ts).toISOString(),
       synced:    0,
     });
     requestSync();
-
+    $('#ajout-amount').value = '';
+    $('#ajout-note').value   = '';
+    toast(`Ajout de ${fmtNum(amount)} enregistré`, 'success');
+    _configRendering = false;
     renderConfigContent();
-    toast(`Fond enregistré — ${fmtNum(cash)} liquide${voucher > 0 ? ` · ${fmtNum(voucher)} bons` : ''}`, 'success');
   });
 
   // General save
