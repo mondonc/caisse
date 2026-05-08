@@ -33,6 +33,13 @@ const state = {
     cashOpening: 0,   // fond de caisse
   },
 
+  // Fond de caisse
+  fondCaisse: {
+    cash:        0,
+    voucher:     0,
+    recorded_at: null,   // ISO string, null = pas encore saisi
+  },
+
   // Payment flow
   pay: {
     active:        false,
@@ -111,6 +118,12 @@ async function init() {
       ...savedConfig,
       paymentMethods: { ...state.config.paymentMethods, ...(savedConfig.paymentMethods ?? {}) },
     };
+  }
+
+  // Charger le fond de caisse
+  const savedFond = await getSetting('fond_caisse');
+  if (savedFond) {
+    state.fondCaisse = savedFond;
   }
 
   // Reflect service name in header
@@ -721,7 +734,39 @@ async function renderConfigContent() {
 
   const pm = state.config.paymentMethods;
 
+  const f = state.fondCaisse;
+  const fondInfo = f.recorded_at
+    ? `Saisi le ${new Date(f.recorded_at).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}`
+    : 'Pas encore saisi pour ce service';
+
   el.innerHTML = `
+    <!-- Fond de caisse -->
+    <div class="config-section">
+      <h3>Fond de caisse en début de service</h3>
+      <p class="config-hint">${fondInfo}</p>
+      <div class="fond-fields">
+        <div class="config-field">
+          <label for="cfg-fond-cash">Liquide</label>
+          <div class="fond-input-row">
+            <input type="number" id="cfg-fond-cash" min="0" step="0.01"
+                   placeholder="0.00" inputmode="decimal"
+                   value="${f.cash > 0 ? f.cash : ''}">
+            <span class="fond-currency">€</span>
+          </div>
+        </div>
+        <div class="config-field">
+          <label for="cfg-fond-voucher">Bons</label>
+          <div class="fond-input-row">
+            <input type="number" id="cfg-fond-voucher" min="0" step="0.01"
+                   placeholder="0.00" inputmode="decimal"
+                   value="${f.voucher > 0 ? f.voucher : ''}">
+            <span class="fond-currency">€</span>
+          </div>
+        </div>
+      </div>
+      <button class="btn-sm primary" id="cfg-save-fond">Enregistrer le fond</button>
+    </div>
+
     <!-- Service name -->
     <div class="config-section">
       <h3>Général</h3>
@@ -765,6 +810,17 @@ async function renderConfigContent() {
       <button class="btn-add-product" id="cfg-add-product">+ Ajouter un produit</button>
     </div>
   `;
+
+  // Fond de caisse save
+  $('#cfg-save-fond').addEventListener('click', async () => {
+    const cash    = parseAmount($('#cfg-fond-cash').value);
+    const voucher = parseAmount($('#cfg-fond-voucher').value);
+    state.fondCaisse = { cash, voucher, recorded_at: new Date().toISOString() };
+    await setSetting('fond_caisse', state.fondCaisse);
+    // Rafraîchir l'info "saisi le..."
+    renderConfigContent();
+    toast(`Fond enregistré — ${fmtNum(cash)} liquide${voucher > 0 ? ` · ${fmtNum(voucher)} bons` : ''}`, 'success');
+  });
 
   // General save
   $('#cfg-save-general').addEventListener('click', async () => {
@@ -940,7 +996,11 @@ async function renderReportData(container, d) {
       ${(change > 0 || refund > 0) ? `<div class="report-detail">encaissé ${detail}</div>` : ''}`;
   }
 
-  const fond = state.config.cashOpening || 0;
+  const fond      = state.fondCaisse.cash    || 0;
+  const fondBons  = state.fondCaisse.voucher || 0;
+  const fondInfo  = state.fondCaisse.recorded_at
+    ? ` (saisi ${new Date(state.fondCaisse.recorded_at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})})`
+    : ' (non saisi)';
 
   container.innerHTML = badge + `
     <div class="report-card">
@@ -967,11 +1027,14 @@ async function renderReportData(container, d) {
 
     <div class="report-card">
       <h3>En caisse (théorique)</h3>
-      ${rKV('Fond de caisse',    fmtNum(fond))}
-      ${rKV('+ Liquide net',     fmtNum(d.cash_net))}
+      <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:8px">Fond${fondInfo}</div>
+      ${rKV('Fond liquide',      fmtNum(fond))}
+      ${rKV('+ Entrées liquide', fmtNum(d.cash_net))}
       ${rKV('= Total liquide',   fmtNum(fond + d.cash_net), true)}
       <div style="height:8px"></div>
-      ${rKV('Bons nets',         fmtNum(d.voucher_net), true)}
+      ${rKV('Fond bons',         fmtNum(fondBons))}
+      ${rKV('+ Entrées bons',    fmtNum(d.voucher_net))}
+      ${rKV('= Total bons',      fmtNum(fondBons + d.voucher_net), true)}
     </div>
   `;
 }
@@ -1002,6 +1065,12 @@ function updateSyncDot(status) {
     }
   });
 }
+
+// ═══════════════════════════════════════════════════════════════
+// FOND DE CAISSE
+// ═══════════════════════════════════════════════════════════════
+
+
 
 // ═══════════════════════════════════════════════════════════════
 // EVENT BINDING

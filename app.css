@@ -112,6 +112,7 @@ html, body {
 }
 .icon-btn:active { background: var(--surface-3); color: var(--text); }
 
+
 /* ─── Main Views ─────────────────────────────────────────────── */
 .view {
   display: none;
@@ -813,6 +814,48 @@ html, body {
 .btn-sm.danger { border-color: var(--danger-dim); color: var(--danger); }
 .btn-sm.primary { border-color: var(--accent); color: var(--accent); }
 .btn-sm:active { filter: brightness(0.8); }
+
+/* Champs fond de caisse dans la config */
+.config-hint {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+.fond-fields {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.fond-fields .config-field { flex: 1; margin-bottom: 0; }
+
+.fond-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+.fond-input-row input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 1rem;
+  font-weight: 600;
+  outline: none;
+  min-width: 0;
+  -webkit-appearance: none;
+}
+.fond-input-row input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.fond-currency {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
 
 .btn-add-product {
   display: flex;
