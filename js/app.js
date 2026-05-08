@@ -37,8 +37,9 @@ const state = {
   fondCaisse: {
     cash:        0,
     voucher:     0,
-    recorded_at: null,   // ISO string, null = pas encore saisi
+    recorded_at: null,
   },
+  fondCaisseHistory: [],  // [{cash, voucher, recorded_at}] — toutes les saisies
 
   // Payment flow
   pay: {
@@ -122,9 +123,10 @@ async function init() {
 
   // Charger le fond de caisse
   const savedFond = await getSetting('fond_caisse');
-  if (savedFond) {
-    state.fondCaisse = savedFond;
-  }
+  if (savedFond) state.fondCaisse = savedFond;
+
+  const savedFondHistory = await getSetting('fond_caisse_history');
+  if (Array.isArray(savedFondHistory)) state.fondCaisseHistory = savedFondHistory;
 
   // Reflect service name in header
   $('#service-name').textContent = state.config.serviceName;
@@ -213,7 +215,9 @@ function renderProductGrid() {
     btn.style.color = fg;
     btn.dataset.id = p.id;
     btn.innerHTML = `
-      <span class="p-name">${escHtml(p.name)}</span>
+      <span class="p-name-row">
+        <span class="p-name">${escHtml(p.name)}</span><span class="p-count hidden"></span>
+      </span>
       <span class="p-price">${fmtNum(p.price)}</span>
     `;
     btn.addEventListener('click', () => addToCart(p));
@@ -259,6 +263,25 @@ function clearCart() {
   renderCartSheet();
 }
 
+// ─── Compteurs produits sur la grille ────────────────────────
+
+function updateProductCounts() {
+  state.catalog.forEach(p => {
+    const btn     = $('#product-grid [data-id="' + p.id + '"]');
+    if (!btn) return;
+    const countEl = btn.querySelector('.p-count');
+    if (!countEl) return;
+    const item = state.cart.find(i => i.id === p.id);
+    if (item) {
+      countEl.textContent = `(${item.qty})`;
+      countEl.classList.remove('hidden');
+    } else {
+      countEl.textContent = '';
+      countEl.classList.add('hidden');
+    }
+  });
+}
+
 // ─── Cart Bar ─────────────────────────────────────────────────
 
 function renderCartBar() {
@@ -269,6 +292,7 @@ function renderCartBar() {
   const empty = (n === 0);
   $('#btn-pay').disabled      = empty;
   $('#btn-checkout').disabled = empty;
+  updateProductCounts();
 }
 
 // ─── Cart Sheet ───────────────────────────────────────────────
@@ -619,6 +643,9 @@ function renderPayConfirm() {
     </div>` : ''}`;
 
   $('#pay-footer').innerHTML = `
+    <div class="pay-warning-box">
+      ⚠️ Ne valide pas avant que le paiement soit vraiment terminé
+    </div>
     <div class="btn-row">
       <button class="btn-secondary" id="pay-btn-back">← Retour</button>
       <button class="btn-primary" id="pay-btn-ok">✓ Valider</button>
@@ -839,8 +866,11 @@ async function renderConfigContent() {
   $('#cfg-save-fond').addEventListener('click', async () => {
     const cash    = parseAmount($('#cfg-fond-cash').value);
     const voucher = parseAmount($('#cfg-fond-voucher').value);
-    state.fondCaisse = { cash, voucher, recorded_at: new Date().toISOString() };
+    const entry = { cash, voucher, recorded_at: new Date().toISOString() };
+    state.fondCaisse = entry;
+    state.fondCaisseHistory.push(entry);
     await setSetting('fond_caisse', state.fondCaisse);
+    await setSetting('fond_caisse_history', state.fondCaisseHistory);
     // Rafraîchir l'info "saisi le..."
     renderConfigContent();
     toast(`Fond enregistré — ${fmtNum(cash)} liquide${voucher > 0 ? ` · ${fmtNum(voucher)} bons` : ''}`, 'success');
@@ -954,25 +984,41 @@ async function renderReportContent() {
   const el = $('#report-content');
   el.innerHTML = `
     <div class="report-date-row">
-      <label>Du</label>
-      <input type="date" id="rpt-from" value="${today()}">
-      <label>Au</label>
-      <input type="date" id="rpt-to" value="${today()}">
+      <div class="rpt-range-group">
+        <span class="rpt-range-label">Du</span>
+        <input type="date" id="rpt-from-date" value="${today()}">
+        <input type="time" id="rpt-from-time" value="00:00">
+      </div>
+      <div class="rpt-range-group">
+        <span class="rpt-range-label">Au</span>
+        <input type="date" id="rpt-to-date" value="${today()}">
+        <input type="time" id="rpt-to-time" value="23:59">
+      </div>
     </div>
     <div id="rpt-body"><div style="text-align:center;padding:32px;color:var(--text-dim)">Chargement…</div></div>`;
 
-  $('#rpt-from').addEventListener('change', loadReport);
-  $('#rpt-to').addEventListener('change', loadReport);
+  // Ouvrir le widget natif au clic (showPicker) + déclencher loadReport au changement
+  ['rpt-from-date', 'rpt-from-time', 'rpt-to-date', 'rpt-to-time'].forEach(id => {
+    const inp = $(`#${id}`);
+    if (!inp) return;
+    inp.addEventListener('click', () => { try { inp.showPicker(); } catch (_) {} });
+    inp.addEventListener('change', loadReport);
+    inp.addEventListener('input',  loadReport);   // certains navigateurs n'émettent qu'input
+  });
+
   await loadReport();
 }
 
 async function loadReport() {
-  const fromVal = $('#rpt-from')?.value;
-  const toVal   = $('#rpt-to')?.value;
-  if (!fromVal || !toVal) return;
+  const fromDate = $('#rpt-from-date')?.value;
+  const fromTime = $('#rpt-from-time')?.value || '00:00';
+  const toDate   = $('#rpt-to-date')?.value;
+  const toTime   = $('#rpt-to-time')?.value   || '23:59';
+  if (!fromDate || !toDate) return;
 
-  const from = `${fromVal}T00:00:00`;
-  const to   = `${toVal}T23:59:59`;
+  // Combiner date + heure locale → UTC ISO pour comparaison avec les timestamps
+  const from = new Date(`${fromDate}T${fromTime}:00`).toISOString();
+  const to   = new Date(`${toDate}T${toTime}:59`).toISOString();
 
   const body = $('#rpt-body');
   if (!body) return;
@@ -985,13 +1031,13 @@ async function loadReport() {
   try {
     const res  = await fetch(`./api/report.php?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
     const data = await res.json();
-    await renderReportData(body, data);
+    await renderReportData(body, data, from);
   } catch {
     body.innerHTML = `<div style="text-align:center;padding:32px;color:var(--danger)">Erreur de chargement</div>`;
   }
 }
 
-async function renderReportData(container, d) {
+async function renderReportData(container, d, fromISO) {
   const pending = await dbGetAllByIndex('transactions', 'synced', 0);
   const badge = pending.length > 0
     ? `<div style="text-align:center;padding:8px;color:var(--info);font-size:0.82rem">⚠ ${pending.length} transaction(s) non synchronisée(s) — rapport incomplet</div>`
@@ -1022,11 +1068,13 @@ async function renderReportData(container, d) {
       ${(change > 0 || refund > 0) ? `<div class="report-detail">encaissé ${detail}</div>` : ''}`;
   }
 
-  const fond      = state.fondCaisse.cash    || 0;
-  const fondBons  = state.fondCaisse.voucher || 0;
-  const fondInfo  = state.fondCaisse.recorded_at
-    ? ` (saisi ${new Date(state.fondCaisse.recorded_at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})})`
-    : ' (non saisi)';
+  // Fond en vigueur au début de la période (pas forcément le fond actuel)
+  const fondPeriod = fromISO ? getFondForPeriod(fromISO) : state.fondCaisse;
+  const fond     = fondPeriod.cash    || 0;
+  const fondBons = fondPeriod.voucher || 0;
+  const fondInfo = fondPeriod.recorded_at
+    ? ` (saisi le ${new Date(fondPeriod.recorded_at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})})`
+    : ' (non saisi — fond à 0)';
 
   container.innerHTML = badge + `
     <div class="report-card">
@@ -1053,16 +1101,34 @@ async function renderReportData(container, d) {
 
     <div class="report-card">
       <h3>En caisse (théorique)</h3>
-      <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:8px">Fond${fondInfo}</div>
-      ${rKV('Fond liquide',      fmtNum(fond))}
-      ${rKV('+ Entrées liquide', fmtNum(d.cash_net))}
-      ${rKV('= Total liquide',   fmtNum(fond + d.cash_net), true)}
-      <div style="height:8px"></div>
-      ${rKV('Fond bons',         fmtNum(fondBons))}
-      ${rKV('+ Entrées bons',    fmtNum(d.voucher_net))}
-      ${rKV('= Total bons',      fmtNum(fondBons + d.voucher_net), true)}
+      <div class="report-fond-info">Fond de caisse${fondInfo}</div>
+
+      <div class="report-drawer-group">
+        <div class="report-drawer-title">Liquide</div>
+        ${rKV('Début de service',        fmtNum(fond))}
+        ${rKV('Variation sur la période', (d.cash_net >= 0 ? '+ ' : '− ') + fmtNum(Math.abs(d.cash_net)))}
+        ${rKV('En caisse maintenant',    fmtNum(fond + d.cash_net), true)}
+      </div>
+
+      <div class="report-drawer-group">
+        <div class="report-drawer-title">Bons</div>
+        ${rKV('Début de service',        fmtNum(fondBons))}
+        ${rKV('Variation sur la période', (d.voucher_net >= 0 ? '+ ' : '− ') + fmtNum(Math.abs(d.voucher_net)))}
+        ${rKV('En caisse maintenant',    fmtNum(fondBons + d.voucher_net), true)}
+      </div>
     </div>
   `;
+}
+
+// ── Trouve le fond de caisse en vigueur au début d'une période ─
+// fromISO : chaîne ISO UTC (ex: "2024-05-08T06:00:00.000Z")
+// Retourne le fond le plus récent enregistré <= fromISO,
+// ou {cash:0, voucher:0, recorded_at:null} si aucun.
+function getFondForPeriod(fromISO) {
+  const candidates = state.fondCaisseHistory
+    .filter(f => f.recorded_at <= fromISO)
+    .sort((a, b) => b.recorded_at.localeCompare(a.recorded_at));
+  return candidates[0] ?? { cash: 0, voucher: 0, recorded_at: null };
 }
 
 // ═══════════════════════════════════════════════════════════════
