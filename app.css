@@ -968,38 +968,54 @@ html, body {
   flex-direction: column;
   gap: 8px;
   padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
 }
 
 .rpt-range-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+  flex-wrap: nowrap;
 }
 
 .rpt-range-label {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 700;
   color: var(--text-dim);
-  width: 20px;
+  width: 24px;
   flex-shrink: 0;
 }
 
-.report-date-row input[type="date"],
-.report-date-row input[type="time"] {
+/* Selects custom date/heure — format garanti JJ/Mois/AAAA + 24h */
+.rpt-sel {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text);
   font-family: var(--mono);
-  font-size: 0.9rem;
-  padding: 8px 10px;
+  font-size: 0.85rem;
+  padding: 6px 2px;
   outline: none;
   cursor: pointer;
   -webkit-appearance: none;
+  appearance: none;
+  text-align: center;
+  text-align-last: center;
 }
-.report-date-row input[type="date"] { flex: 1; }
-.report-date-row input[type="time"] { width: 82px; flex-shrink: 0; }
-.report-date-row input:focus { border-color: var(--accent); }
+.rpt-sel:focus { border-color: var(--accent); }
+.rpt-sel-day   { width: 40px; }
+.rpt-sel-month { width: 50px; }
+.rpt-sel-year  { width: 60px; }
+.rpt-sel-time  { width: 38px; }
+
+.rpt-sep {
+  color: var(--text-faint);
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+.rpt-sep-time { margin: 0 4px; }
 
 /* ─── Toast notifications ────────────────────────────────────── */
 #toast-container {

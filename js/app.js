@@ -980,45 +980,82 @@ function hideReport() {
   $('#view-report').classList.add('hidden');
 }
 
+// ─── Sélecteur date/heure custom (selects) ───────────────────
+// Fiable quelque soit la locale du navigateur : format JJ/MM/AAAA, 24h garanti.
+
+const MONTHS_FR = ['Jan','Fév','Mar','Avr','Mai','Jun',
+                   'Jul','Aoû','Sep','Oct','Nov','Déc'];
+
+function makeDateTimeSelects(prefix, dateStr, timeStr) {
+  const [y, mo, d] = dateStr.split('-').map(Number);
+  const [h, mn]    = timeStr.split(':').map(Number);
+  const curYear    = new Date().getFullYear();
+  const years      = [curYear - 1, curYear, curYear + 1];
+
+  const opts = (arr, sel) => arr.map(([v, lbl]) =>
+    `<option value="${v}"${v === sel ? ' selected' : ''}>${lbl}</option>`
+  ).join('');
+
+  const dayOpts   = opts(Array.from({length:31}, (_,i) => [i+1, String(i+1).padStart(2,'0')]), d);
+  const monthOpts = opts(MONTHS_FR.map((lbl,i) => [i+1, lbl]), mo);
+  const yearOpts  = opts(years.map(y2 => [y2, y2]), y);
+  const hourOpts  = opts(Array.from({length:24}, (_,i) => [i, String(i).padStart(2,'0')]), h);
+  const minOpts   = opts(Array.from({length:60}, (_,i) => [i, String(i).padStart(2,'0')]), mn);
+
+  return `
+    <select id="${prefix}-day"   class="rpt-sel rpt-sel-day">${dayOpts}</select>
+    <span   class="rpt-sep">/</span>
+    <select id="${prefix}-month" class="rpt-sel rpt-sel-month">${monthOpts}</select>
+    <span   class="rpt-sep">/</span>
+    <select id="${prefix}-year"  class="rpt-sel rpt-sel-year">${yearOpts}</select>
+    <span   class="rpt-sep rpt-sep-time">—</span>
+    <select id="${prefix}-hour"  class="rpt-sel rpt-sel-time">${hourOpts}</select>
+    <span   class="rpt-sep">h</span>
+    <select id="${prefix}-min"   class="rpt-sel rpt-sel-time">${minOpts}</select>`;
+}
+
+function getDateTimeISO(prefix, sec = 0) {
+  const d  = parseInt($(`#${prefix}-day`).value,   10);
+  const mo = parseInt($(`#${prefix}-month`).value, 10);
+  const y  = parseInt($(`#${prefix}-year`).value,  10);
+  const h  = parseInt($(`#${prefix}-hour`).value,  10);
+  const mn = parseInt($(`#${prefix}-min`).value,   10);
+  // new Date(year, monthIndex, day, h, m, s) — interprété en heure locale
+  return new Date(y, mo - 1, d, h, mn, sec).toISOString();
+}
+
+const RPT_FIELDS = ['day','month','year','hour','min'];
+
 async function renderReportContent() {
   const el = $('#report-content');
   el.innerHTML = `
     <div class="report-date-row">
       <div class="rpt-range-group">
         <span class="rpt-range-label">Du</span>
-        <input type="date" id="rpt-from-date" value="${today()}" lang="fr-FR">
-        <input type="time" id="rpt-from-time" value="00:00" lang="fr-FR">
+        ${makeDateTimeSelects('rpt-from', today(), '00:00')}
       </div>
       <div class="rpt-range-group">
         <span class="rpt-range-label">Au</span>
-        <input type="date" id="rpt-to-date" value="${today()}" lang="fr-FR">
-        <input type="time" id="rpt-to-time" value="23:59" lang="fr-FR">
+        ${makeDateTimeSelects('rpt-to', today(), '23:59')}
       </div>
     </div>
     <div id="rpt-body"><div style="text-align:center;padding:32px;color:var(--text-dim)">Chargement…</div></div>`;
 
-  // Ouvrir le widget natif au clic (showPicker) + déclencher loadReport au changement
-  ['rpt-from-date', 'rpt-from-time', 'rpt-to-date', 'rpt-to-time'].forEach(id => {
-    const inp = $(`#${id}`);
-    if (!inp) return;
-    inp.addEventListener('click', () => { try { inp.showPicker(); } catch (_) {} });
-    inp.addEventListener('change', loadReport);
-    inp.addEventListener('input',  loadReport);   // certains navigateurs n'émettent qu'input
+  ['rpt-from', 'rpt-to'].forEach(prefix => {
+    RPT_FIELDS.forEach(f => {
+      $(`#${prefix}-${f}`)?.addEventListener('change', loadReport);
+    });
   });
 
   await loadReport();
 }
 
 async function loadReport() {
-  const fromDate = $('#rpt-from-date')?.value;
-  const fromTime = $('#rpt-from-time')?.value || '00:00';
-  const toDate   = $('#rpt-to-date')?.value;
-  const toTime   = $('#rpt-to-time')?.value   || '23:59';
-  if (!fromDate || !toDate) return;
+  // Vérifier que les selects sont présents (vue rapport peut ne pas être ouverte)
+  if (!$('#rpt-from-day')) return;
 
-  // Combiner date + heure locale → UTC ISO pour comparaison avec les timestamps
-  const from = new Date(`${fromDate}T${fromTime}:00`).toISOString();
-  const to   = new Date(`${toDate}T${toTime}:59`).toISOString();
+  const from = getDateTimeISO('rpt-from', 0);   // début de la minute
+  const to   = getDateTimeISO('rpt-to',   59);  // fin de la minute
 
   const body = $('#rpt-body');
   if (!body) return;
