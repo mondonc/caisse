@@ -138,4 +138,7 @@ echo json_encode([
     'opening'          => array_map(fn($v) => round($v, 2), $opening),
     'cash_net'         => round($net_by_method['cash'],    2),
     'voucher_net'      => round($net_by_method['voucher'], 2),
+    'movements'        => array_values(array_filter($all, fn($tx) =>
+        in_array($tx['type'] ?? 'sale', ['sale', 'refund', 'fond', 'decaissement'])
+    )),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);

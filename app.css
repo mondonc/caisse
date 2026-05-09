@@ -976,6 +976,61 @@ html, body {
 }
 .report-detail:last-child { border-bottom: none; }
 
+/* ─── Journal des mouvements ─────────────────────────────────── */
+.report-journal-card { padding: 0; overflow: hidden; }
+
+.journal-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  user-select: none;
+}
+.journal-toggle:active { background: var(--surface-3); }
+.journal-chevron { font-size: 0.7rem; transition: transform var(--transition); }
+
+.journal-body { border-top: 1px solid var(--border); }
+.journal-empty { padding: 16px; text-align: center; color: var(--text-dim); font-size: 0.85rem; }
+
+.journal-row {
+  border-bottom: 1px solid var(--border);
+  padding: 9px 16px;
+}
+.journal-row:last-child { border-bottom: none; }
+
+.journal-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.journal-icon  { font-size: 0.9rem; width: 18px; text-align: center; flex-shrink: 0; }
+.journal-label { flex: 1; font-weight: 600; }
+.journal-amount { font-family: var(--mono); font-weight: 600; flex-shrink: 0; }
+.journal-date   { font-size: 0.78rem; color: var(--text-dim); flex-shrink: 0; }
+
+.journal-detail {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-top: 3px;
+  padding-left: 26px;
+}
+
+/* Couleurs par type */
+.journal-sale   .journal-icon,
+.journal-sale   .journal-amount  { color: var(--success); }
+.journal-refund .journal-icon,
+.journal-refund .journal-amount  { color: var(--danger); }
+.journal-fond   .journal-icon,
+.journal-fond   .journal-amount  { color: var(--info); }
+.journal-decais .journal-icon,
+.journal-decais .journal-amount  { color: var(--accent); }
+
 /* Bloc "En caisse" */
 .report-fond-info {
   font-size: 0.78rem;

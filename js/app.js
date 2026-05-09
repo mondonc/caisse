@@ -1247,6 +1247,45 @@ function drawerGroup(label, fond, ajouts, grossIn, changeOut, refundOut, decais)
     </div>`;
 }
 
+// ── Journal détaillé des mouvements ──────────────────────────
+function renderJournal(movements) {
+  if (!movements.length) return '<div class="journal-empty">Aucun mouvement sur cette période</div>';
+
+  const TYPE = {
+    sale:          { icon: '✓', label: 'Vente',          cls: 'journal-sale' },
+    refund:        { icon: '↩', label: 'Remboursement',  cls: 'journal-refund' },
+    fond:          { icon: '↑', label: 'Ajout caisse',   cls: 'journal-fond' },
+    decaissement:  { icon: '↓', label: 'Décaissement',   cls: 'journal-decais' },
+  };
+
+  return movements.map(tx => {
+    const type   = tx.type ?? 'sale';
+    const meta   = TYPE[type] ?? TYPE.sale;
+    const date   = new Date(tx.timestamp).toLocaleString('fr-FR',
+      { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+    const amount = Math.abs(tx.total ?? 0);
+
+    // Ligne de détail selon le type
+    let detail = '';
+    if (type === 'sale' && tx.items?.length) {
+      detail = tx.items.map(i => `${escHtml(i.name)} ×${i.qty}`).join(' &nbsp;·&nbsp; ');
+    } else if (tx.note) {
+      detail = escHtml(tx.note);
+    }
+
+    return `
+      <div class="journal-row ${meta.cls}">
+        <div class="journal-row-main">
+          <span class="journal-icon">${meta.icon}</span>
+          <span class="journal-label">${meta.label}</span>
+          <span class="journal-amount">${fmtNum(amount)}</span>
+          <span class="journal-date">${date}</span>
+        </div>
+        ${detail ? `<div class="journal-detail">${detail}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
 async function renderReportData(container, d, fromISO) {
   const pending = await dbGetAllByIndex('transactions', 'synced', 0);
   const badge = pending.length > 0
@@ -1325,7 +1364,25 @@ async function renderReportData(container, d, fromISO) {
         d.decaissement_out?.voucher ?? 0
       )}
     </div>
+
+    <div class="report-card report-journal-card">
+      <div class="journal-toggle" id="journal-toggle">
+        <span>Journal des mouvements (${(d.movements ?? []).length})</span>
+        <span class="journal-chevron">▶</span>
+      </div>
+      <div class="journal-body hidden" id="journal-body">
+        ${renderJournal(d.movements ?? [])}
+      </div>
+    </div>
   `;
+
+  // Toggle journal
+  $('#journal-toggle')?.addEventListener('click', () => {
+    const body    = $('#journal-body');
+    const chevron = document.querySelector('.journal-chevron');
+    const open    = body.classList.toggle('hidden');
+    chevron.textContent = open ? '▶' : '▼';
+  });
 }
 
 // ── Trouve le fond de caisse en vigueur au début d'une période ─
