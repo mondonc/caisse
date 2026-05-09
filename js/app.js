@@ -1230,15 +1230,20 @@ async function loadReport() {
 }
 
 // Bloc "En caisse" pour une méthode (liquide ou bons)
-function drawerGroup(label, fond, net, decais) {
-  const total = round2(fond + net - decais);
+function drawerGroup(label, fond, ajouts, grossIn, changeOut, refundOut, decais) {
+  const total = round2(fond + ajouts + grossIn - changeOut - refundOut - decais);
+  const rows = [];
+  rows.push(rKV('Début de service',        fmtNum(fond)));
+  if (ajouts    > 0) rows.push(rKV('+ Ajouts caisse',     '+ ' + fmtNum(ajouts)));
+  if (grossIn   > 0) rows.push(rKV('+ Ventes encaissées', '+ ' + fmtNum(grossIn)));
+  if (changeOut > 0) rows.push(rKV('− Rendu de monnaie',  '− ' + fmtNum(changeOut)));
+  if (refundOut > 0) rows.push(rKV('− Remboursements',    '− ' + fmtNum(refundOut)));
+  if (decais    > 0) rows.push(rKV('− Décaissements',     '− ' + fmtNum(decais)));
+  rows.push(rKV('= En caisse maintenant',  fmtNum(total), true));
   return `
     <div class="report-drawer-group">
       <div class="report-drawer-title">${label}</div>
-      ${rKV('Début de service',     fmtNum(fond))}
-      ${rKV('+ Entrées nettes',     (net    >= 0 ? '+ ' : '− ') + fmtNum(Math.abs(net)))}
-      ${decais > 0 ? rKV('− Décaissements', '− ' + fmtNum(decais)) : ''}
-      ${rKV('En caisse maintenant', fmtNum(total), true)}
+      ${rows.join('')}
     </div>`;
 }
 
